@@ -1,0 +1,20 @@
+@import 'variable.scss';
+@import 'mixin.scss';
+
+body {
+  background-color: $background-color;
+  color: $primary-color;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+
+.header, .footer {
+  text-align: center;
+  padding: 10px;
+}
+
+.nav a {
+  margin: 0 15px;
+  text-decoration: none;
+  color: $primary-color;
+}
