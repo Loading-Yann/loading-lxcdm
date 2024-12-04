@@ -3,24 +3,8 @@ const dotenv = require('dotenv');
 const express = require('express');
 const app = express();
 
-// Exemple de route
-app.get('/', (req, res) => {
-  res.send('Bienvenue sur Loading-LXCDM 🚀');
-});
-
-module.exports = app;
-
+// Charger les variables d'environnement
 dotenv.config();
-
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
-
-const mongoose = require('mongoose');
-require('dotenv').config(); // Charge les variables d'environnement
 
 // Connexion à MongoDB
 mongoose
@@ -33,7 +17,16 @@ mongoose
     console.error('❌ Erreur de connexion à MongoDB :', err.message);
   });
 
-  const Credential = require('./models/Credential');
+// Middleware pour parser les JSON
+app.use(express.json());
+
+// Exemple de route
+app.get('/', (req, res) => {
+  res.send('Bienvenue sur Loading-LXCDM 🚀');
+});
+
+// Route de test pour MongoDB
+const Credential = require('./models/Credential');
 
 app.get('/test-db', async (req, res) => {
   try {
@@ -49,3 +42,4 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
+module.exports = app;
