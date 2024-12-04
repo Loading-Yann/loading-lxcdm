@@ -1,11 +1,19 @@
-require('dotenv').config(); // Charge les variables d'environnement depuis .env
-const express = require('express');
-const app = require('./app'); // Importez la configuration de votre application
+require('dotenv').config();
+const mongoose = require('mongoose');
+const app = require('./app');
 
-// Port depuis .env ou par défaut 5000
-const PORT = process.env.PORT || 5000;
+// Connexion à MongoDB
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log('🚀 Connecté à MongoDB Atlas');
 
-// Démarrage du serveur
-app.listen(PORT, () => {
-  console.log(`🚀 Serveur en cours d'exécution sur le port ${PORT}`);
-});
+    // Démarrage du serveur après connexion réussie
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Serveur en cours d'exécution sur le port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Erreur de connexion à MongoDB :', err.message);
+  });
