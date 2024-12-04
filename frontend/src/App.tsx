@@ -1,20 +1,21 @@
-import React from 'react';
+
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import LoginPage from './pages/loginpage/LoginPage';
-import ParcPage from './pages/parcpage/ParcPage';
-import FirewallPage from './pages/firewallpage/FirewallPage';
-import VeeamPage from './pages/veeampage/VeeamPage';
-import GravityZonePage from './pages/gravityzonepage/GravityZonePage';
-import NotFoundPage from './pages/notfoundpage/NotFoundPage';
-import Header from './components/header/Header';
-import Footer from './components/footer/Footer';
-import './styles/_app.scss';
+import { Header, Footer, Nav } from './components';
+import {
+  LoginPage,
+  ParcPage,
+  FirewallPage,
+  VeeamPage,
+  GravityZonePage,
+  NotFoundPage,
+} from './pages';
+import './styles/index.scss';
 
-
-const App = () => {
+const App: React.FC = () => {
   return (
     <Router>
       <Header />
+      <Nav />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/parc" element={<ParcPage />} />
