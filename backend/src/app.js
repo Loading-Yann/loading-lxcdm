@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const express = require('express');
+const app = express();
+
+// Exemple de route
+app.get('/', (req, res) => {
+  res.send('Bienvenue sur Loading-LXCDM 🚀');
+});
+
+module.exports = app;
 
 dotenv.config();
 
