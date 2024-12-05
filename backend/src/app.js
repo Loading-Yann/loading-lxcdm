@@ -15,4 +15,8 @@ app.get('/', (req, res) => {
 const testDbRoute = require('./routes/testDbRoute');
 app.use('/test-db', testDbRoute);
 
+//Routes protégées
+const protectedRoutes = require('./routes/protectedRoutes');
+app.use('/api/protected', protectedRoutes);
+
 module.exports = app;
