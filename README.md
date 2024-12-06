@@ -7,3 +7,5 @@ démarre le serveur
 npm run client
 démarre l'application
 
+se connecter à mongodb pour valider l'ip
+
