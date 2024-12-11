@@ -2,38 +2,63 @@ import requests
 import json
 from pymongo import MongoClient
 from datetime import datetime
+from dotenv import load_dotenv
+import os
+
+# Charger les variables d'environnement
+load_dotenv()
 
 # Connexion à MongoDB
+def get_mongo_client():
+    mongo_uri = os.getenv("MONGO_URI")
+    if not mongo_uri:
+        print("[ERROR] MONGO_URI n'est pas défini dans le fichier .env")
+        raise ValueError("MONGO_URI manquant")
+    print(f"[INFO] Connexion à MongoDB avec URI : {mongo_uri}")
+    return MongoClient(mongo_uri)
+
+# Récupérer les credentials depuis MongoDB
 def get_credentials_from_mongo():
-    client = MongoClient("mongodb://<user>:<password>@<host>:<port>/<database>?authSource=admin")
-    db = client["<database>"]  # Nom de votre base de données
-    collection = db["credentials"]  # Nom de la collection
-    return list(collection.find())
-
-# Fonction pour lire ou initialiser le fichier firewalls.json
-def read_or_initialize_firewalls():
     try:
-        with open('firewalls.json', 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return []
+        client = get_mongo_client()
+        db_name = os.getenv("MONGO_DB_NAME", "test")
+        collection_name = os.getenv("MONGO_CREDENTIALS_COLLECTION", "credentials")
+        print(f"[INFO] Utilisation de la base de données '{db_name}' et de la collection '{collection_name}'.")
+        db = client[db_name]
+        collection = db[collection_name]
+        credentials = list(collection.find())
+        print(f"[INFO] Nombre de credentials récupérés : {len(credentials)}")
+        return credentials
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de la récupération des credentials : {str(e)}")
+        raise
 
-# Fonction pour mettre à jour firewalls.json sans doublons
-def update_firewalls(firewalls, client_name, date_created, firewall_data):
-    existing_entry = next((entry for entry in firewalls if entry["clientName"] == client_name), None)
+# Sauvegarder les données des firewalls dans MongoDB
+def save_firewalls_to_mongo(firewalls):
+    try:
+        client = get_mongo_client()
+        db_name = os.getenv("MONGO_DB_NAME", "test")
+        collection_name = os.getenv("MONGO_FIREWALLS_COLLECTION", "firewalls")
+        print(f"[INFO] Sauvegarde des données dans la base '{db_name}', collection '{collection_name}'.")
+        db = client[db_name]
+        collection = db[collection_name]
 
-    if existing_entry:
-        existing_entry["firewalls"] = firewall_data
-        existing_entry["dateCreated"] = date_created
-    else:
-        firewalls.append({
-            "clientName": client_name,
-            "dateCreated": date_created,
-            "firewalls": firewall_data
-        })
+        for firewall_data in firewalls:
+            client_name = firewall_data.get("clientName")
+            print(f"[INFO] Traitement des données pour le client : {client_name}")
+            existing_entry = collection.find_one({"clientName": client_name})
 
-    with open('firewalls.json', 'w') as file:
-        json.dump(firewalls, file, indent=4)
+            if existing_entry:
+                collection.update_one({"clientName": client_name}, {"$set": firewall_data})
+                print(f"[INFO] Données mises à jour pour le client : {client_name}")
+            else:
+                collection.insert_one(firewall_data)
+                print(f"[INFO] Données insérées pour le client : {client_name}")
+
+        print("[INFO] Données des firewalls sauvegardées avec succès dans MongoDB.")
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de la sauvegarde des firewalls dans MongoDB : {str(e)}")
+        raise
 
 # Fonction pour récupérer les données des pare-feu via l'API Sophos
 def fetch_firewall_data(client_id, client_secret):
@@ -49,10 +74,12 @@ def fetch_firewall_data(client_id, client_secret):
     }
 
     try:
-        # Obtenir un token d'accès
+        print(f"[INFO] Tentative d'obtention du token pour client_id : {client_id}")
         response = requests.post(token_url, data=auth_data)
+        print(f"[DEBUG] Données envoyées pour l'authentification : {auth_data}")
         response.raise_for_status()
         access_token = response.json().get("access_token")
+        print(f"[INFO] Token obtenu avec succès pour le client_id : {client_id}")
 
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -65,6 +92,7 @@ def fetch_firewall_data(client_id, client_secret):
         response.raise_for_status()
         tenant_id = response.json()["id"]
         data_region = response.json()["apiHosts"]["dataRegion"]
+        print(f"[INFO] Tenant ID : {tenant_id}, Région : {data_region}")
 
         firewall_url = f"{data_region}/firewall/v1/firewalls"
         headers["X-Tenant-ID"] = tenant_id
@@ -73,45 +101,60 @@ def fetch_firewall_data(client_id, client_secret):
         response = requests.get(firewall_url, headers=headers)
         response.raise_for_status()
         firewalls = response.json().get("items", [])
+        print(f"[INFO] Nombre de firewalls récupérés : {len(firewalls)}")
 
-        # Compléter les informations spécifiques pour chaque pare-feu
+        # Ajouter les données supplémentaires
         for firewall in firewalls:
-            firewall["isBackupMonthly"] = True  # Ajoutez ici la logique pour vérifier la périodicité du backup
-            firewall["isPresentInSophosCentral"] = True  # Ajoutez la logique pour vérifier la présence dans Sophos Central
-            firewall["publicIP"] = "192.168.0.1"  # Exemple : récupérer l'adresse IP publique
-            firewall["wanIP"] = "192.168.1.1"  # Exemple : récupérer l'adresse IP WAN
-            firewall["lanIP"] = "192.168.2.1"  # Exemple : récupérer l'adresse IP LAN
-            firewall["licenseDuration"] = "12 months"  # Exemple : récupérer la durée des licences
+            firewall["isBackupMonthly"] = True
+            firewall["isPresentInSophosCentral"] = True
+            firewall["publicIP"] = firewall.get("externalIpv4Addresses", [None])[0]
+            firewall["wanIP"] = "192.168.1.1"  # À remplir dynamiquement si possible
+            firewall["lanIP"] = "192.168.2.1"  # À remplir dynamiquement si possible
+            firewall["licenseDuration"] = "12 months"
 
         return firewalls
 
     except requests.exceptions.HTTPError as http_err:
-        print(f"HTTP error occurred: {http_err}")
+        print(f"[ERROR] HTTP error occurred: {http_err}")
     except Exception as err:
-        print(f"Other error occurred: {err}")
+        print(f"[ERROR] Other error occurred: {err}")
 
     return None
 
 # Fonction principale
 def main():
-    credentials = get_credentials_from_mongo()
-    firewalls = read_or_initialize_firewalls()
+    try:
+        print("[INFO] Début du traitement.")
+        credentials = get_credentials_from_mongo()
+        firewalls = []
 
-    for cred in credentials:
-        client_id = cred["clientId"]
-        client_secret = cred["clientSecret"]
-        client_name = cred["clientName"]
-        date_created = cred.get("dateCreated", datetime.now().isoformat())
+        for cred in credentials:
+            client_id = cred.get("clientId")
+            client_secret = cred.get("clientSecret")
+            client_name = cred.get("clientName")
 
-        firewall_data = fetch_firewall_data(client_id, client_secret)
+            if not client_id or not client_secret:
+                print(f"[WARNING] clientId ou clientSecret manquant pour le client {client_name}")
+                continue
 
-        if firewall_data:
-            for firewall in firewall_data:
-                firewall["clientName"] = client_name  # Ajouter le clientName dans chaque pare-feu
+            print(f"[INFO] Récupération des données pour le client : {client_name}")
+            firewall_data = fetch_firewall_data(client_id, client_secret)
 
-            update_firewalls(firewalls, client_name, date_created, firewall_data)
+            if firewall_data:
+                for firewall in firewall_data:
+                    firewall["clientName"] = client_name
 
-    print("Les données des firewalls ont été mises à jour dans firewalls.json.")
+                firewalls.append({
+                    "clientName": client_name,
+                    "dateCreated": datetime.now().isoformat(),
+                    "firewalls": firewall_data,
+                })
+
+        save_firewalls_to_mongo(firewalls)
+        print("[INFO] Les données des firewalls ont été mises à jour avec succès.")
+
+    except Exception as e:
+        print(f"[ERROR] Erreur inattendue : {str(e)}")
 
 if __name__ == "__main__":
     main()

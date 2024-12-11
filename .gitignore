@@ -3,6 +3,10 @@ Confidental
 
 .env
 .env.test
+*
+firewall.json
+credentials.json
+sophosCredentials.json
 
 # dependencies
 /node_modules
