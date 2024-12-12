@@ -1,36 +1,24 @@
 const express = require("express");
-const { exec } = require("child_process");
-const router = express.Router();
+const fs = require("fs");
 const path = require("path");
+const router = express.Router();
 
-// Route pour exécuter le script Python
-router.post("/refresh", (req, res) => {
-  const scriptPath = path.join(__dirname, "../scripts/apisophos.py");
-
-  exec(`python3 ${scriptPath}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Erreur lors de l'exécution du script: ${error.message}`);
-      return res.status(500).json({ message: "Erreur lors de l'exécution du script." });
-    }
-    if (stderr) {
-      console.error(`Erreur standard: ${stderr}`);
-    }
-    console.log(`Sortie: ${stdout}`);
-    res.status(200).json({ message: "Données mises à jour avec succès.", output: stdout });
-  });
-});
-
-// Route pour récupérer les données des firewalls depuis MongoDB
-router.get("/", async (req, res) => {
-  const mongoose = require("mongoose");
-  const Firewall = require("../models/Firewall");
-
+// Route pour lire les firewalls depuis le fichier JSON local
+router.get("/local", (req, res) => {
+  const filePath = path.join(__dirname, "../scripts/firewalls.json");
   try {
-    const firewalls = await Firewall.find();
-    res.status(200).json(firewalls);
+    if (!fs.existsSync(filePath)) {
+      console.error("[ERROR] Fichier firewalls.json introuvable.");
+      return res.status(404).json({ message: "Fichier firewalls.json introuvable." });
+    }
+
+    const fileContent = fs.readFileSync(filePath, "utf8");
+    const jsonData = JSON.parse(fileContent);
+    console.log("[DEBUG] Contenu du fichier firewalls.json :", jsonData);
+    res.status(200).json(jsonData);
   } catch (error) {
-    console.error("Erreur lors de la récupération des données:", error);
-    res.status(500).json({ message: "Erreur lors de la récupération des données." });
+    console.error("[ERROR] Erreur lors de la lecture du fichier firewalls.json :", error);
+    res.status(500).json({ message: "Erreur lors de la lecture des données locales." });
   }
 });
 

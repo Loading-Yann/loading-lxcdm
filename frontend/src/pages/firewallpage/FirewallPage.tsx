@@ -3,66 +3,80 @@ import axios from "axios";
 import "./_firewallpage.scss";
 
 interface Firewall {
-  clientName: string;
-  publicIP: string;
-  wanIP: string;
-  lanIP: string;
-  licenseDuration: string;
+  [key: string]: any;
 }
 
-const FirewallPage = () => {
-  const [firewalls, setFirewalls] = useState<Firewall[]>([]);
+interface FirewallData {
+  clientName: string;
+  dateCreated: string;
+  firewalls: Firewall[];
+}
+
+const FirewallPage: React.FC = () => {
+  const [firewalls, setFirewalls] = useState<FirewallData[]>([]);
   const [filteredFirewalls, setFilteredFirewalls] = useState<Firewall[]>([]);
   const [selectedClient, setSelectedClient] = useState("all");
-  const [visibleColumns, setVisibleColumns] = useState<{
-    [key: string]: boolean;
-  }>({
-    clientName: true,
-    publicIP: true,
-    wanIP: true,
-    lanIP: true,
-    licenseDuration: true,
-  });
+  const [columns, setColumns] = useState<string[]>([]);
+  const [visibleColumns, setVisibleColumns] = useState<{ [key: string]: boolean }>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchFirewalls();
+    fetchLocalFirewalls();
   }, []);
 
-  const fetchFirewalls = async () => {
+  const fetchLocalFirewalls = async () => {
     try {
-      const response = await axios.get("/firewalls");
-      setFirewalls(response.data);
-      setFilteredFirewalls(response.data);
-    } catch (error) {
-      console.error("Erreur lors du chargement des données des firewalls:", error);
-    }
-  };
+      const response = await axios.get("/firewalls/local");
+      const data: FirewallData[] = response.data;
 
-  const executeScript = async () => {
-    setLoading(true);
-    try {
-      await axios.post("/firewalls/refresh");
-      await fetchFirewalls();
-      alert("Données mises à jour avec succès !");
+      setFirewalls(data);
+
+      // Récupérer dynamiquement toutes les colonnes disponibles
+      const allColumns = Array.from(
+        new Set(
+          data.flatMap((item: FirewallData) =>
+            item.firewalls.flatMap((fw: Firewall) => Object.keys(fw))
+          )
+        )
+      );
+
+      // Ajouter les colonnes supplémentaires nécessaires
+      if (!allColumns.includes("publicIP")) allColumns.push("publicIP");
+      if (!allColumns.includes("lanIP")) allColumns.push("lanIP");
+      if (!allColumns.includes("licenseType")) allColumns.push("licenseType");
+
+      setColumns(allColumns);
+
+      const initialVisibleColumns = allColumns.reduce((acc, col) => {
+        acc[col] = true; // Toutes les colonnes visibles par défaut
+        return acc;
+      }, {} as { [key: string]: boolean });
+      setVisibleColumns(initialVisibleColumns);
+
+      // Enrichir les firewalls avec des déductions logiques
+      const allFirewalls = data.flatMap((item: FirewallData) => item.firewalls);
+      const enrichedFirewalls = allFirewalls.map((fw: Firewall) => ({
+        ...fw,
+        publicIP: fw.externalIpv4Addresses?.[0] || "Non spécifié",
+        lanIP: fw.lanIP || "Non spécifié",
+        licenseType: fw.capabilities?.includes("sdwanGroup") ? "Xstream" : "Standard",
+      }));
+      setFilteredFirewalls(enrichedFirewalls);
     } catch (error) {
-      console.error("Erreur lors de l'exécution du script:", error);
-      alert("Erreur lors de l'exécution du script.");
-    } finally {
-      setLoading(false);
+      console.error("[ERROR] Erreur lors du chargement des données locales :", error);
     }
   };
 
   const handleClientFilter = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const client = event.target.value;
     setSelectedClient(client);
-    if (client === "all") {
-      setFilteredFirewalls(firewalls);
-    } else {
-      setFilteredFirewalls(
-        firewalls.filter((fw: Firewall) => fw.clientName === client)
-      );
-    }
+    const clientFirewalls =
+      client === "all"
+        ? firewalls.flatMap((item) => item.firewalls)
+        : firewalls
+            .filter((item) => item.clientName === client)
+            .flatMap((item) => item.firewalls);
+    setFilteredFirewalls(clientFirewalls);
   };
 
   const toggleColumn = (column: string) => {
@@ -72,62 +86,88 @@ const FirewallPage = () => {
     }));
   };
 
+  const toggleAllColumns = (toggle: boolean) => {
+    const updatedColumns = columns.reduce((acc, col) => {
+      acc[col] = toggle;
+      return acc;
+    }, {} as { [key: string]: boolean });
+    setVisibleColumns(updatedColumns);
+  };
+
+  const renderValue = (value: any) => {
+    if (typeof value === "object" && value !== null) {
+      return JSON.stringify(value);
+    }
+    return value;
+  };
+
   return (
     <div className="firewall-page">
       <h1>Gestion des Firewalls</h1>
 
       <div className="controls">
-        <button className="matrix-button" onClick={executeScript} disabled={loading}>
-          {loading ? "Chargement..." : "Pillule Rouge"}
-        </button>
-
         <select onChange={handleClientFilter} value={selectedClient}>
           <option value="all">Tous les clients</option>
-          {Array.from(new Set(firewalls.map((fw: Firewall) => fw.clientName))).map(
-            (clientName) => (
-              <option key={clientName} value={clientName}>
-                {clientName}
-              </option>
-            )
-          )}
+          {firewalls.map((item, index) => (
+            <option key={`${item.clientName}-${index}`} value={item.clientName}>
+              {item.clientName}
+            </option>
+          ))}
         </select>
 
+        <div className="toggle-all-controls">
+          <button
+            className="toggle-all-button"
+            onClick={() => toggleAllColumns(true)}
+          >
+            Tout cocher
+          </button>
+          <button
+            className="toggle-all-button"
+            onClick={() => toggleAllColumns(false)}
+          >
+            Tout décocher
+          </button>
+        </div>
+
         <div className="column-toggles">
-          {Object.keys(visibleColumns).map((col) => (
-            <label key={col}>
-              <input
-                type="checkbox"
-                checked={visibleColumns[col]}
-                onChange={() => toggleColumn(col)}
-              />
+          {columns.map((col) => (
+            <button
+              key={col}
+              className={`filter-button ${visibleColumns[col] ? "active" : ""}`}
+              onClick={() => toggleColumn(col)}
+            >
               {col}
-            </label>
+            </button>
           ))}
         </div>
       </div>
 
-      <table className="firewall-table">
-        <thead>
-          <tr>
-            {visibleColumns.clientName && <th>Client</th>}
-            {visibleColumns.publicIP && <th>IP Publique</th>}
-            {visibleColumns.wanIP && <th>IP WAN</th>}
-            {visibleColumns.lanIP && <th>IP LAN</th>}
-            {visibleColumns.licenseDuration && <th>Durée de la licence</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {filteredFirewalls.map((fw: Firewall, index) => (
-            <tr key={index}>
-              {visibleColumns.clientName && <td>{fw.clientName}</td>}
-              {visibleColumns.publicIP && <td>{fw.publicIP}</td>}
-              {visibleColumns.wanIP && <td>{fw.wanIP}</td>}
-              {visibleColumns.lanIP && <td>{fw.lanIP}</td>}
-              {visibleColumns.licenseDuration && <td>{fw.licenseDuration}</td>}
+      <div className="table-container">
+        <table className="firewall-table">
+          <thead>
+            <tr>
+              {columns.map(
+                (col) => visibleColumns[col] && <th key={col}>{col}</th>
+              )}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filteredFirewalls.map((fw, index) => (
+              <tr key={`${fw.id || fw.serialNumber || index}`}>
+                {columns.map(
+                  (col) =>
+                    visibleColumns[col] && (
+                      <td key={`${fw.id || fw.serialNumber || index}-${col}`}>
+                        {renderValue(fw[col])}
+                      </td>
+                    )
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

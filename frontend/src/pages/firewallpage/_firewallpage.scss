@@ -1,54 +1,111 @@
 .firewall-page {
+  padding: 20px;
   background: black;
   color: lime;
   font-family: "Courier New", Courier, monospace;
   text-align: center;
 
-  .matrix-button {
-    background: red;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s;
-    &:hover {
-      background: darkred;
-    }
-    &:disabled {
-      background: gray;
-      cursor: not-allowed;
-    }
-  }
-
   .controls {
     margin: 20px 0;
 
+    .client-filters,
+    .column-toggles,
+    .toggle-all-controls {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap; // Permet d'ajuster les filtres en plusieurs lignes si nécessaire
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+
     select {
       margin-left: 10px;
+      margin-bottom: 10px;
+      background: black;
+      color: lime;
+      border: 1px solid lime;
+      padding: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      &:hover {
+        background: lime;
+        color: black;
+      }
+    }
+
+    .toggle-all-controls {
+      button {
+        background: lime;
+        border: none;
+        border-radius: 20px;
+        padding: 5px 15px;
+        color: black;
+        cursor: pointer;
+        transition: all 0.3s;
+
+        &:hover {
+          opacity: 0.8;
+        }
+      }
     }
 
     .column-toggles {
-      display: inline-block;
-      margin-left: 20px;
+      .filter-button {
+        background: black; // Fond noir par défaut (inactif)
+        border: 2px solid lime;
+        border-radius: 20px;
+        padding: 5px 10px;
+        color: lime;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-transform: capitalize;
 
-      label {
-        margin-right: 10px;
+        &:hover {
+          background: lime;
+          color: black;
+        }
+
+        &.active {
+          background: lime; // Fond vert lorsqu'actif
+          color: black;
+        }
       }
     }
   }
 
-  .firewall-table {
+  .table-container {
+    overflow-x: auto; // Ajoute un défilement horizontal si le tableau dépasse
     margin: 20px auto;
-    border-collapse: collapse;
-    width: 80%;
-    th,
-    td {
-      border: 1px solid lime;
-      padding: 8px;
-    }
-    th {
-      background: lime;
-      color: black;
+    max-width: 100%; // Limite la largeur à celle de l'écran
+
+    table {
+      border-collapse: collapse;
+      width: 100%; // S'étend pour occuper toute la largeur disponible
+      table-layout: fixed; // Ajuste les colonnes pour éviter qu'elles dépassent
+      th,
+      td {
+        border: 1px solid lime;
+        padding: 8px;
+        text-align: center;
+        font-size: 0.9rem;
+        word-wrap: break-word; // Coupe les mots trop longs
+        overflow: hidden;
+        text-overflow: ellipsis; // Affiche "..." si le contenu est trop long
+      }
+
+      th {
+        background: lime;
+        color: black;
+      }
+
+      .clickable {
+        cursor: pointer;
+        color: lightblue;
+        text-decoration: underline;
+        &:hover {
+          opacity: 0.8;
+        }
+      }
     }
   }
 }
